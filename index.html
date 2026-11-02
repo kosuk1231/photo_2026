@@ -230,6 +230,24 @@ h1{
 .btn--ghost:hover{background:var(--panel);color:var(--cream);filter:none}
 .formmsg{font-size:13.5px;font-weight:700;color:#E09A86}
 
+/* ── 내 예약 조회·취소 ── */
+.manage{margin-top:clamp(40px,7vw,64px);border-top:1px solid var(--line);padding-top:13px}
+.manage .hint{color:var(--mute);font-size:13px;margin:14px 0 20px;max-width:58ch}
+.lookup{display:grid;grid-template-columns:1fr 1fr auto;gap:16px;align-items:end}
+@media (max-width:640px){.lookup{grid-template-columns:1fr}}
+.card{
+  margin-top:22px;border:1px solid var(--gold-dim);background:rgba(0,0,0,.3);
+  padding:20px 22px;display:flex;gap:16px 24px;flex-wrap:wrap;align-items:center;
+}
+.card dl{margin:0;display:flex;gap:14px 28px;flex-wrap:wrap}
+.card dt{font-family:"Martian Mono",monospace;font-size:8.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:5px}
+.card dd{margin:0;font-size:15.5px;font-weight:700}
+.card dd.big{font-family:"Martian Mono",monospace;font-size:19px;font-weight:600;color:var(--gold-hi);letter-spacing:-.03em}
+.card .act{margin-left:auto}
+.btn--danger{background:transparent;color:#E09A86;border:1px solid rgba(224,154,134,.5);font-weight:700}
+.btn--danger:hover{background:rgba(224,154,134,.12);filter:none}
+.manage .msg{margin-top:14px;font-size:13.5px;font-weight:700}
+
 /* ── 완료 ── */
 .done{margin-top:clamp(36px,6vw,58px)}
 .stub{border:1px solid var(--gold-dim);background:rgba(0,0,0,.36);padding:clamp(28px,5vw,46px);text-align:center}
@@ -331,7 +349,7 @@ footer .mono{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color
         <p class="err">이메일 주소 형식을 확인해 주세요.</p>
       </div>
     </div>
-    <p class="consent">입력하신 정보는 촬영 안내와 사진 전달에만 사용하며, 촬영 종료 후 3개월 이내에 파기합니다.</p>
+    <p class="consent"><b style="color:var(--gold)">한 분당 한 칸만 예약할 수 있습니다.</b> 같은 휴대전화 번호로는 날짜가 달라도 중복 예약이 되지 않습니다. 시간을 바꾸시려면 아래 「내 예약 확인 · 취소」에서 기존 예약을 취소한 뒤 다시 선택해 주세요.<br><br>입력하신 정보는 촬영 안내와 사진 전달에만 사용하며, 촬영 종료 후 3개월 이내에 파기합니다.</p>
     <div class="actions">
       <button class="btn" type="button" id="submit">이 시간으로 예약하기</button>
       <button class="btn btn--ghost" type="button" id="cancel">다른 시간 고르기</button>
@@ -355,6 +373,26 @@ footer .mono{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color
     <div class="actions"><button class="btn btn--ghost" type="button" id="again">다른 사람 예약하기</button></div>
   </section>
 
+  <section class="manage" id="manage" aria-labelledby="manageTitle">
+    <div class="shead" style="border-top:0;margin:0;padding:0">
+      <h2 id="manageTitle">내 예약 확인 · 취소</h2>
+    </div>
+    <p class="hint">예약하실 때 입력한 성함과 휴대전화 번호를 그대로 넣어 주세요. 시간을 바꾸시려면 여기서 취소한 뒤 다시 선택하시면 됩니다.</p>
+    <div class="lookup">
+      <div class="field">
+        <label for="q-name">성함</label>
+        <input id="q-name" type="text" autocomplete="name" placeholder="홍길동" maxlength="30">
+      </div>
+      <div class="field">
+        <label for="q-phone">핸드폰 번호</label>
+        <input id="q-phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="010-1234-5678" maxlength="13">
+      </div>
+      <button class="btn btn--ghost" type="button" id="lookupBtn" style="padding:13px 26px">조회하기</button>
+    </div>
+    <p class="msg" id="manageMsg" role="status"></p>
+    <div id="manageCard"></div>
+  </section>
+
   <footer>
     <span>문의 · 서울특별시사회복지사협회 회원조직팀 02-786-2962</span>
     <span class="mono" id="build">5 min each</span>
@@ -366,7 +404,7 @@ footer .mono{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color
    ① GAS_URL 한 줄만 배포 주소로 바꾸면 됩니다.
    ══════════════════════════════════════════ */
 const GAS_URL = "https://script.google.com/macros/s/AKfycbx8eY8ic4Syst0KyTK5288_GDjuJ6aHFeHvtsKc9MbzCOpqr1V4eOA_IcrbvS0llngfgQ/exec";
-const BUILD = "2026-11-02b";
+const BUILD = "2026-11-02c";
 
 /* 날짜·시간 설정 — Code.gs의 CFG.DAYS와 반드시 같게 유지 */
 const DAYS = [
@@ -443,17 +481,9 @@ async function fetchSlots(){
   }
   return JSON.parse(text);
 }
+/* POST(text/plain)로 preflight를 피하고, 막히면 JSONP로 폴백 */
 async function postBook(payload){
-  try{
-    const res = await fetch(GAS_URL, {
-      method:"POST",
-      headers:{ "Content-Type":"text/plain;charset=utf-8" },  // preflight 회피
-      body: JSON.stringify(payload)
-    });
-    return await res.json();
-  }catch(e){
-    return await jsonp({ action:"book", ...payload });
-  }
+  return callApi({ action:"book", ...payload });
 }
 
 /* ── 렌더 ── */
@@ -596,12 +626,87 @@ $("again").addEventListener("click", () => {
   ["i-name","i-org","i-phone","i-email"].forEach(id => $(id).value = "");
   loadSlots(); stripEl.scrollIntoView({ behavior:"smooth", block:"center" });
 });
-$("i-phone").addEventListener("input", (e) => {
+function hyphenate(e){
   const d = e.target.value.replace(/\D/g,"").slice(0,11);
   e.target.value = d.length < 4 ? d
     : d.length < 8 ? d.slice(0,3) + "-" + d.slice(3)
     : d.slice(0,3) + "-" + d.slice(3, d.length===10?6:7) + "-" + d.slice(d.length===10?6:7);
-});
+}
+$("i-phone").addEventListener("input", hyphenate);
+$("q-phone").addEventListener("input", hyphenate);
+
+/* ── 내 예약 조회 · 취소 ── */
+const mMsg = $("manageMsg"), mCard = $("manageCard"), lookupBtn = $("lookupBtn");
+
+async function callApi(payload){
+  try{
+    const res = await fetch(GAS_URL, {
+      method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  }catch(e){
+    return await jsonp(payload);
+  }
+}
+
+function showMsg(text, ok){
+  mMsg.textContent = text;
+  mMsg.style.color = ok ? "var(--gold-hi)" : "#E09A86";
+}
+
+function renderCard(b){
+  mCard.innerHTML = `<div class="card">
+    <dl>
+      <div><dt>촬영일</dt><dd>${b.dayLabel}</dd></div>
+      <div><dt>시간</dt><dd class="big mono">${b.slot}</dd></div>
+      <div><dt>수상 유형</dt><dd>${b.award}</dd></div>
+      <div><dt>소속</dt><dd>${b.org}</dd></div>
+    </dl>
+    <div class="act"><button class="btn btn--danger" type="button" id="cancelBtn">예약 취소하기</button></div>
+  </div>`;
+  $("cancelBtn").addEventListener("click", doCancel);
+}
+
+async function doLookup(){
+  const name = $("q-name").value.trim(), phone = $("q-phone").value.trim();
+  mCard.innerHTML = "";
+  if (name.length < 2 || !/^01[016789]-?\d{3,4}-?\d{4}$/.test(phone.replace(/\s/g,""))){
+    showMsg("성함과 휴대전화 번호를 정확히 입력해 주세요.", false); return;
+  }
+  if (GAS_URL.includes("여기에_배포ID")){
+    showMsg("미리보기 모드에서는 조회할 수 없습니다.", false); return;
+  }
+  lookupBtn.disabled = true; lookupBtn.textContent = "조회 중…"; showMsg("", true);
+  const r = await callApi({ action:"lookup", name, phone }).catch(() => ({ ok:false, code:"NETWORK" }));
+  lookupBtn.disabled = false; lookupBtn.textContent = "조회하기";
+
+  if (r && r.ok && r.booking){ showMsg("", true); renderCard(r.booking); return; }
+  showMsg(r && r.code === "NOTFOUND"
+    ? "해당 성함과 번호로 접수된 예약이 없습니다."
+    : "조회에 실패했습니다. 잠시 후 다시 시도해 주세요.", false);
+}
+
+async function doCancel(){
+  const name = $("q-name").value.trim(), phone = $("q-phone").value.trim();
+  if (!confirm("예약을 취소하시겠습니까?\n취소한 시간은 다른 분이 바로 예약할 수 있습니다.")) return;
+  const btn = $("cancelBtn");
+  btn.disabled = true; btn.textContent = "취소 중…";
+  const r = await callApi({ action:"cancel", name, phone }).catch(() => ({ ok:false, code:"NETWORK" }));
+
+  if (r && r.ok){
+    mCard.innerHTML = "";
+    showMsg("예약이 취소됐습니다. 위에서 새 시간을 선택하실 수 있습니다.", true);
+    $("q-name").value = ""; $("q-phone").value = "";
+    loadSlots();
+    return;
+  }
+  btn.disabled = false; btn.textContent = "예약 취소하기";
+  showMsg(r && r.message ? r.message : "취소에 실패했습니다. 회원조직팀으로 연락해 주세요.", false);
+}
+
+lookupBtn.addEventListener("click", doLookup);
+$("q-phone").addEventListener("keydown", (e) => { if (e.key === "Enter") doLookup(); });
 
 function validate(){
   const v = { name:$("i-name").value.trim(), org:$("i-org").value.trim(),
@@ -647,13 +752,19 @@ submitBtn.addEventListener("click", async () => {
   }
   const map = {
     TAKEN:"방금 다른 분이 이 시간을 예약했습니다. 다른 칸을 골라 주세요.",
-    DUPLICATE:"이미 같은 번호로 예약된 시간이 있습니다. 변경은 회원조직팀으로 연락해 주세요.",
+    DUPLICATE:"이미 같은 번호로 예약된 시간이 있습니다.",
     INVALID:"입력값을 다시 확인해 주세요.",
     CLOSED:"예약이 마감됐습니다.",
     QUOTA:"해당 수상 유형의 신청이 정원만큼 모두 찼습니다. 회원조직팀으로 문의해 주세요.",
     NETWORK:"서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요."
   };
-  msgEl.textContent = map[r && r.code] || "예약에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+  if (r && r.code === "DUPLICATE"){
+    msgEl.textContent = (r.message || map.DUPLICATE) + " 아래에서 취소 후 다시 선택해 주세요.";
+    $("q-name").value = v.name; $("q-phone").value = v.phone;
+    $("manage").scrollIntoView({ behavior:"smooth", block:"start" });
+    return;
+  }
+  msgEl.textContent = (r && r.message) || map[r && r.code] || "예약에 실패했습니다. 잠시 후 다시 시도해 주세요.";
   if (r && r.code === "TAKEN"){ picked = null; formEl.hidden = true; loadSlots(); }
 });
 
